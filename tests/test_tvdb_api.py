@@ -101,8 +101,8 @@ class test_tvdb_basic(unittest.TestCase):
 
     def test_no_season(self):
         show = self.t['Katekyo Hitman Reborn']
-        print tvdb_api
-        print show[1][1]
+        print(tvdb_api)
+        print(show[1][1])
 
 class test_tvdb_errors(unittest.TestCase):
     # Used to store the cached instance of Tvdb()
@@ -459,10 +459,10 @@ class test_tvdb_custom_caching(unittest.TestCase):
         class UsedCustomOpener(Exception):
             pass
 
-        import urllib2
+        import urllib.request as urllib2
         class TestOpener(urllib2.BaseHandler):
             def default_open(self, request):
-                print request.get_method()
+                print(request.get_method())
                 raise UsedCustomOpener("Something")
 
         custom_opener = urllib2.build_opener(TestOpener())

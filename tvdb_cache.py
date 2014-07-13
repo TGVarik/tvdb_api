@@ -17,9 +17,9 @@ __version__ = "1.9"
 import os
 import time
 import errno
-import httplib
-import urllib2
-import StringIO
+import http.client as http
+import urllib.request as urllib2
+from io import StringIO
 from hashlib import md5
 from threading import RLock
 
@@ -38,7 +38,7 @@ def locked_function(origfunc):
 def calculate_cache_path(cache_location, url):
     """Checks if [cache_location]/[hash_of_url].headers and .body exist
     """
-    thumb = md5(url).hexdigest()
+    thumb = md5(url.encode('utf-8')).hexdigest()
     header = os.path.join(cache_location, thumb + ".headers")
     body = os.path.join(cache_location, thumb + ".body")
     return header, body
@@ -77,7 +77,7 @@ def store_in_cache(cache_location, url, response):
     try:
         outf = open(hpath, "wb")
         headers = str(response.info())
-        outf.write(headers)
+        outf.write(bytes(headers, 'utf-8'))
         outf.close()
 
         outf = open(bpath, "wb")
@@ -116,7 +116,7 @@ class CacheHandler(urllib2.BaseHandler):
         if not os.path.exists(self.cache_location):
             try:
                 os.mkdir(self.cache_location)
-            except OSError, e:
+            except OSError as e:
                 if e.errno == errno.EEXIST and os.path.isdir(self.cache_location):
                     # File exists, and it's a directory,
                     # another process beat us to creating this dir, that's OK.
@@ -147,28 +147,28 @@ class CacheHandler(urllib2.BaseHandler):
         """Gets a HTTP response, if it was a GET request and the status code
         starts with 2 (200 OK etc) it caches it and returns a CachedResponse
         """
-        if (request.get_method() == "GET"
-            and str(response.code).startswith("2")
-        ):
-            if 'x-local-cache' not in response.info():
-                # Response is not cached
-                set_cache_header = store_in_cache(
-                    self.cache_location,
-                    request.get_full_url(),
-                    response
-                )
-            else:
-                set_cache_header = True
+        #if (request.get_method() == "GET"
+        #    and str(response.code).startswith("2")
+        #):
+        #    if 'x-local-cache' not in response.info():
+        #        # Response is not cached
+        #        set_cache_header = store_in_cache(
+        #            self.cache_location,
+        #            request.get_full_url(),
+        #            response
+        #        )
+        #    else:
+        #        set_cache_header = True
 
-            return CachedResponse(
-                self.cache_location,
-                request.get_full_url(),
-                set_cache_header = set_cache_header
-            )
-        else:
-            return response
+        #    return CachedResponse(
+        #        self.cache_location,
+        #        request.get_full_url(),
+        #        set_cache_header = set_cache_header
+        #    )
+        #else:
+        return response
 
-class CachedResponse(StringIO.StringIO):
+class CachedResponse(StringIO):
     """An urllib2.response-like object for cached responses.
 
     To determine if a response is cached or coming directly from
@@ -180,15 +180,15 @@ class CachedResponse(StringIO.StringIO):
         self.cache_location = cache_location
         hpath, bpath = calculate_cache_path(cache_location, url)
 
-        StringIO.StringIO.__init__(self, file(bpath, "rb").read())
+        StringIO.__init__(self, open(bpath, "r").read())
 
         self.url     = url
         self.code    = 200
         self.msg     = "OK"
-        headerbuf = file(hpath, "rb").read()
+        headerbuf = open(hpath, "r").read()
         if set_cache_header:
             headerbuf += "x-local-cache: %s\r\n" % (bpath)
-        self.headers = httplib.HTTPMessage(StringIO.StringIO(headerbuf))
+        self.headers = http.HTTPMessage(StringIO(headerbuf))
 
     def info(self):
         """Returns headers
@@ -223,12 +223,12 @@ if __name__ == "__main__":
         """Quick test/example of CacheHandler"""
         opener = urllib2.build_opener(CacheHandler("/tmp/"))
         response = opener.open("http://google.com")
-        print response.headers
-        print "Response:", response.read()
+        print(response.headers)
+        print("Response:", response.read())
 
         response.recache()
-        print response.headers
-        print "After recache:", response.read()
+        print(response.headers)
+        print("After recache:", response.read())
 
         # Test usage in threads
         from threading import Thread
@@ -242,10 +242,10 @@ if __name__ == "__main__":
                 assert self.lastdata == newdata, "Data was not consistent, uhoh"
                 req.recache()
         threads = [CacheThreadTest() for x in range(50)]
-        print "Starting threads"
+        print("Starting threads")
         [t.start() for t in threads]
-        print "..done"
-        print "Joining threads"
+        print("..done")
+        print("Joining threads")
         [t.join() for t in threads]
-        print "..done"
+        print("..done")
     main()

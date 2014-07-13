@@ -1130,7 +1130,8 @@ class PstatsParser:
         self.profile = Profile()
         self.function_ids = {}
 
-    def get_function_name(self, (filename, line, name)):
+    def get_function_name(self, parms):
+        filename, line, name = parms
         module = os.path.splitext(filename)[0]
         module = os.path.basename(module)
         return "%s:%d:%s" % (module, line, name)
@@ -1162,7 +1163,7 @@ class PstatsParser:
                 caller = self.get_function(fn)
                 call = Call(callee.id)
                 if isinstance(value, tuple):
-                    for i in xrange(0, len(value), 4):
+                    for i in range(0, len(value), 4):
                         nc, cc, tt, ct = value[i:i+4]
                         if CALLS in call:
                             call[CALLS] += cc
@@ -1454,7 +1455,8 @@ class DotWriter:
             raise TypeError
         self.write(s)
 
-    def color(self, (r, g, b)):
+    def color(self, parms):
+        r, g, b = parms
 
         def float2int(f):
             if f <= 0.0:

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #encoding:utf-8
 #author:dbr/Ben
 #project:tvdb_api
@@ -19,20 +18,20 @@ __version__ = "1.9"
 
 import os
 import time
-import urllib
-import urllib2
+import urllib.request as urllib
 import getpass
-import StringIO
+from io import StringIO
 import tempfile
 import warnings
 import logging
 import datetime
 import zipfile
+from xml.etree import ElementTree
 
-try:
-    import xml.etree.cElementTree as ElementTree
-except ImportError:
-    import xml.etree.ElementTree as ElementTree
+#try:
+#    import xml.etree.cElementTree as ElementTree
+#except ImportError:
+#    import xml.etree.ElementTree as ElementTree
 
 try:
     import gzip
@@ -255,13 +254,13 @@ class Episode(dict):
         if term == None:
             raise TypeError("must supply string to search for (contents)")
 
-        term = unicode(term).lower()
+        term = term.lower()
         for cur_key, cur_value in self.items():
-            cur_key, cur_value = unicode(cur_key).lower(), unicode(cur_value).lower()
+            cur_key, cur_value = cur_key.lower(), cur_value.lower()
             if key is not None and cur_key != key:
                 # Do not search this key
                 continue
-            if cur_value.find( unicode(term).lower() ) > -1:
+            if cur_value.find( term.lower() ) > -1:
                 return self
 
 
@@ -320,13 +319,13 @@ class Tvdb:
                  >>> import logging
                  >>> logging.basicConfig(level = logging.DEBUG)
 
-        cache (True/False/str/unicode/urllib2 opener):
+        cache (True/False/str/unicode/urllib opener):
             Retrieved XML are persisted to to disc. If true, stores in
             tvdb_api folder under your systems TEMP_DIR, if set to
             str/unicode instance it will use this as the cache
             location. If False, disables caching.  Can also be passed
-            an arbitrary Python object, which is used as a urllib2
-            opener, which should be created by urllib2.build_opener
+            an arbitrary Python object, which is used as a urllib
+            opener, which should be created by urllib.build_opener
 
         banners (True/False):
             Retrieves the banners for a show. These are accessed
@@ -410,23 +409,23 @@ class Tvdb:
         if cache is True:
             self.config['cache_enabled'] = True
             self.config['cache_location'] = self._getTempDir()
-            self.urlopener = urllib2.build_opener(
+            self.urlopener = urllib.build_opener(
                 CacheHandler(self.config['cache_location'])
             )
 
         elif cache is False:
             self.config['cache_enabled'] = False
-            self.urlopener = urllib2.build_opener() # default opener with no caching
+            self.urlopener = urllib.build_opener() # default opener with no caching
 
-        elif isinstance(cache, basestring):
+        elif isinstance(cache, str):
             self.config['cache_enabled'] = True
             self.config['cache_location'] = cache
-            self.urlopener = urllib2.build_opener(
+            self.urlopener = urllib.build_opener(
                 CacheHandler(self.config['cache_location'])
             )
 
-        elif isinstance(cache, urllib2.OpenerDirector):
-            # If passed something from urllib2.build_opener, use that
+        elif isinstance(cache, urllib.OpenerDirector):
+            # If passed something from urllib.build_opener, use that
             log().debug("Using %r as urlopener" % cache)
             self.config['cache_enabled'] = True
             self.urlopener = cache
@@ -509,15 +508,15 @@ class Tvdb:
         try:
             log().debug("Retrieving URL %s" % url)
             resp = self.urlopener.open(url)
-            if 'x-local-cache' in resp.headers:
-                log().debug("URL %s was cached in %s" % (
-                    url,
-                    resp.headers['x-local-cache'])
-                )
-                if recache:
-                    log().debug("Attempting to recache %s" % url)
-                    resp.recache()
-        except (IOError, urllib2.URLError), errormsg:
+            #if 'x-local-cache' in resp.headers:
+            #    log().debug("URL %s was cached in %s" % (
+            #        url,
+            #        resp.headers['x-local-cache'])
+            #    )
+            #    if recache:
+            #        log().debug("Attempting to recache %s" % url)
+            #        resp.recache()
+        except (IOError, urllib.URLError) as errormsg:
             if not str(errormsg).startswith('HTTP Error'):
                 lastTimeout = datetime.datetime.now()
             raise tvdb_error("Could not connect to server: %s" % (errormsg))
@@ -527,7 +526,7 @@ class Tvdb:
         # http://dbr.lighthouseapp.com/projects/13342/tickets/72-gzipped-data-patch
         if 'gzip' in resp.headers.get("Content-Encoding", ''):
             if gzip:
-                stream = StringIO.StringIO(resp.read())
+                stream = StringIO(resp.read())
                 gz = gzip.GzipFile(fileobj=stream)
                 return gz.read()
 
@@ -537,7 +536,7 @@ class Tvdb:
             try:
                 # TODO: The zip contains actors.xml and banners.xml, which are currently ignored [GH-20]
                 log().debug("We recived a zip file unpacking now ...")
-                zipdata = StringIO.StringIO()
+                zipdata = StringIO()
                 zipdata.write(resp.read())
                 myzipfile = zipfile.ZipFile(zipdata)
                 return myzipfile.read('%s.xml' % language)
@@ -555,12 +554,15 @@ class Tvdb:
         try:
             # TVDB doesn't sanitize \r (CR) from user input in some fields,
             # remove it to avoid errors. Change from SickBeard, from will14m
+
+            if type(src) is bytes:
+                src = src.decode('utf-8')
             return ElementTree.fromstring(src.rstrip("\r"))
         except SyntaxError:
             src = self._loadUrl(url, recache=True, language=language)
             try:
                 return ElementTree.fromstring(src.rstrip("\r"))
-            except SyntaxError, exceptionmsg:
+            except SyntaxError as exceptionmsg:
                 errormsg = "There was an error with the XML retrieved from thetvdb.com:\n%s" % (
                     exceptionmsg
                 )
@@ -702,7 +704,7 @@ class Tvdb:
                 tag, value = tag.lower(), value.lower()
                 banners[btype][btype2][bid][tag] = value
 
-            for k, v in banners[btype][btype2][bid].items():
+            for k, v in list(banners[btype][btype2][bid].items()):
                 if k.endswith("path"):
                     new_key = "_%s" % (k)
                     log().debug("Transforming %s to %s" % (k, new_key))
@@ -867,7 +869,7 @@ class Tvdb:
         """Handles tvdb_instance['seriesname'] calls.
         The dict index should be the show id
         """
-        if isinstance(key, (int, long)):
+        if isinstance(key, int):
             # Item is integer, treat as show id
             if key not in self.shows:
                 self._getShowData(key, self.config['language'])
@@ -890,8 +892,8 @@ def main():
     logging.basicConfig(level=logging.DEBUG)
 
     tvdb_instance = Tvdb(interactive=True, cache=False)
-    print tvdb_instance['Lost']['seriesname']
-    print tvdb_instance['Lost'][1][4]['episodename']
+    print(tvdb_instance['Lost']['seriesname'])
+    print(tvdb_instance['Lost'][1][4]['episodename'])
 
 if __name__ == '__main__':
     main()
